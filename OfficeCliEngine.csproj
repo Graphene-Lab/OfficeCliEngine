@@ -12,7 +12,7 @@
 		<Description>Vendored OfficeCLI engine (upstream iOfficeAI/OfficeCLI, Apache-2.0): Core + Handlers for in-process Office document manipulation (.docx/.xlsx/.pptx) with deterministic JSON output, path-based addressing and schema-driven help.</Description>
 		<PackageTags>office;docx;xlsx;pptx;openxml;agent;document;cli</PackageTags>
 		<Authors>Andrea Bruno</Authors>
-		<RepositoryUrl>https://github.com/Graphene-Lab/AIOffice</RepositoryUrl>
+		<RepositoryUrl>https://github.com/Graphene-Lab/OfficeCliEngine</RepositoryUrl>
 		<PackageLicenseFile>NOTICE.md</PackageLicenseFile>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
@@ -54,6 +54,11 @@
 
 	<ItemGroup>
 		<EmbeddedResource Include="schemas/help/**/*.json" LogicalName="schemas/help/%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<InternalsVisibleTo Include="AIOrchestrator" />
+		<InternalsVisibleTo Include="OfficeTool.Tests" />
 	</ItemGroup>
 
 	<ItemGroup>
