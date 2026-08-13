@@ -1,0 +1,100 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net10.0</TargetFramework>
+		<OutputType>Library</OutputType>
+		<!-- Namespace originali dell'engine (i reference interni e le LogicalName
+		     delle risorse embedded dipendono da "OfficeCli.*"). -->
+		<RootNamespace>OfficeCli</RootNamespace>
+		<AssemblyName>OfficeCliEngine</AssemblyName>
+		<PackageId>OfficeCliEngine</PackageId>
+		<Title>OfficeCliEngine</Title>
+		<Description>Vendored OfficeCLI engine (upstream iOfficeAI/OfficeCLI, Apache-2.0): Core + Handlers for in-process Office document manipulation (.docx/.xlsx/.pptx) with deterministic JSON output, path-based addressing and schema-driven help.</Description>
+		<PackageTags>office;docx;xlsx;pptx;openxml;agent;document;cli</PackageTags>
+		<Authors>Andrea Bruno</Authors>
+		<RepositoryUrl>https://github.com/Graphene-Lab/AIOffice</RepositoryUrl>
+		<PackageLicenseFile>NOTICE.md</PackageLicenseFile>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageRequireLicenseAcceptance>False</PackageRequireLicenseAcceptance>
+		<Copyright>Andrea Bruno</Copyright>
+		<Configurations>Debug;Release;Test</Configurations>
+		<Version>$([System.DateTime]::Now.ToString("1.yy.MM.dd"))</Version>
+		<GenerateDocumentationFile>True</GenerateDocumentationFile>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="DocumentFormat.OpenXml" Version="3.4.1" />
+		<!-- Il layer CommandBuilder (conservato byte-identical per fedeltà al vendor)
+		     usa System.CommandLine. -->
+		<PackageReference Include="System.CommandLine" Version="3.0.0-preview.2.26159.112" />
+	</ItemGroup>
+
+	<!-- Risorse embedded: nomi logici identici a quelli di officecli.csproj upstream.
+	     Il codice legge via Assembly.GetManifestResourceStream("OfficeCli.*"/"schemas/help/"/"skills/"). -->
+	<ItemGroup>
+		<EmbeddedResource Include="src/officecli/Resources/preview.css" LogicalName="OfficeCli.Resources.preview.css" />
+		<EmbeddedResource Include="src/officecli/Resources/preview.js" LogicalName="OfficeCli.Resources.preview.js" />
+		<EmbeddedResource Include="src/officecli/Resources/watch-sse-core.js" LogicalName="OfficeCli.Resources.watch-sse-core.js" />
+		<EmbeddedResource Include="src/officecli/Resources/watch-overlay.js" LogicalName="OfficeCli.Resources.watch-overlay.js" />
+		<EmbeddedResource Include="src/officecli/Resources/cx-gallery/index.json" LogicalName="OfficeCli.Resources.cx-gallery.index.json" />
+		<EmbeddedResource Include="src/officecli/Resources/cx-gallery/fragments/*.xml" LogicalName="OfficeCli.Resources.cx-gallery.fragments.%(Filename)%(Extension)" />
+		<EmbeddedResource Include="src/officecli/Resources/chartex-colors.xml" LogicalName="OfficeCli.Resources.chartex-colors.xml" />
+		<EmbeddedResource Include="src/officecli/Resources/chartex-style.xml" LogicalName="OfficeCli.Resources.chartex-style.xml" />
+		<EmbeddedResource Include="src/officecli/Handlers/Pptx/EffectTemplates/*.xml" LogicalName="OfficeCli.Handlers.Pptx.EffectTemplates.%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- %(RecursiveDir) usa '\' su Windows e '/' su Linux/macOS; normalizzare a '/'
+		     come fa officecli.csproj, così il prefisso `skills/{folder}/…` resta identico. -->
+		<EmbeddedResource Include="skills/**/*" LogicalName="skills/$([System.String]::Copy('%(RecursiveDir)').Replace('\','/'))%(Filename)%(Extension)" />
+		<EmbeddedResource Remove="skills/**/*.glb" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<EmbeddedResource Include="schemas/help/**/*.json" LogicalName="schemas/help/%(RecursiveDir)%(Filename)%(Extension)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<None Update="NOTICE.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+		<None Update="README.md">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
+	<!-- Versione automatica + pipeline NuGet, identici a AllToMarkdown.csproj -->
+	<Target Name="SetPackageVersion" DependsOnTargets="Build">
+		<PropertyGroup>
+			<PackageVersion>$(Version)</PackageVersion>
+		</PropertyGroup>
+	</Target>
+
+	<PropertyGroup>
+		<NuGetSource Condition="'$(NuGetSource)' == ''">https://api.nuget.org/v3/index.json</NuGetSource>
+	</PropertyGroup>
+
+	<Target Name="CleanOldNuGetPackages" BeforeTargets="GenerateNuspec">
+		<CreateItem Include="$(PackageOutputPath)*.nupkg">
+			<Output TaskParameter="Include" ItemName="_OldNupkg" />
+		</CreateItem>
+		<Delete Files="@(_OldNupkg)" />
+	</Target>
+
+	<Target Name="PublishPackageToNuGet" AfterTargets="Pack" Condition="'$(SkipNuGetPush)' != 'true'">
+		<Error Condition="'$(NuGetApiKey)' == ''"
+		       Text="NuGetApiKey env var not set: run `setx NuGetApiKey &lt;key&gt;` and restart Visual Studio." />
+		<CreateItem Include="$(PackageOutputPath)*.nupkg">
+			<Output TaskParameter="Include" ItemName="_NuGetPackageToPush" />
+		</CreateItem>
+		<Error Condition="'@(_NuGetPackageToPush)' == ''"
+		       Text="No package found in $(PackageOutputPath): pack produced no expected file." />
+		<Message Importance="High" Text="Publishing %(_NuGetPackageToPush.Identity) to $(NuGetSource) ..." />
+		<Exec Command="dotnet nuget push &quot;%(_NuGetPackageToPush.Identity)&quot; --api-key &quot;$(NuGetApiKey)&quot; --source &quot;$(NuGetSource)&quot; --skip-duplicate" />
+	</Target>
+
+</Project>
