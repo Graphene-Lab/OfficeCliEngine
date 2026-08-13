@@ -137,11 +137,19 @@ internal static class Installer
             return false;
         }
 
-        // Skip binary copy when managed by a package manager (Homebrew, etc.)
-        if (src.Contains("/Caskroom/") || src.Contains("/Cellar/"))
+        // Skip the binary copy when a package manager owns this executable
+        // (Homebrew, Scoop) — it upgrades and removes the file, so a second copy
+        // in the canonical dir would survive `scoop uninstall` / `brew uninstall`
+        // and shadow it. The on-PATH check above does not cover Scoop: it puts
+        // the executable under <scoop>\apps\officecli\current\ and exposes it
+        // through a shim in <scoop>\shims\, so the process path is never itself
+        // on PATH. CONSISTENCY(package-managed): same detector the self-updater
+        // uses to decide it must not replace the binary.
+        var packageManager = UpdateChecker.PackageManagerName(src);
+        if (packageManager != null)
         {
             if (!quiet)
-                Console.WriteLine("Skipping binary install: managed by Homebrew.");
+                Console.WriteLine($"Skipping binary install: managed by {packageManager}.");
             RecordInstalledVersion();
             return false;
         }

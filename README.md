@@ -36,3 +36,19 @@ Errors are surfaced as `CliException` with structured `Code`, `Suggestion`,
 
 Do **not** edit files under `src/officecli/`: they are upstream-copied. See
 `VENDOR.md`.
+
+## Updating from upstream
+
+The vendor tracks the **stable release** (the "Source code (zip)" asset of
+`https://github.com/iOfficeAI/OfficeCLI/releases`), never the repository branch.
+
+```
+.\update-officecli.ps1                 # latest release: sync + gap analysis + builds + tests
+.\update-officecli.ps1 -Tag v1.0.144   # pin a specific release
+```
+
+The updater vendors the release byte-identical, reports any CLI command that has no
+`OfficeTool` method yet (`sync-gap-report.md`), verifies embedded-resource parity,
+builds engine + AIOrchestrator and runs the `OfficeTool.Tests` harness. Nothing is
+committed or pushed — review, fix reported gaps, then commit (CI publishes NuGet).
+Full procedure: `VENDOR.md`.

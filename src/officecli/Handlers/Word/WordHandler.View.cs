@@ -1321,7 +1321,12 @@ public partial class WordHandler
             if (pProps != null && IsNormalStyle(styleName))
             {
                 var indent = pProps.Indentation;
-                if (indent?.FirstLine == null || indent.FirstLine.Value == "0")
+                // w:firstLineChars is the character-relative twin of w:firstLine
+                // (200 = 2 characters, exactly what the suggestion below asks
+                // for) and satisfies the check on its own — CJK documents carry
+                // the indent that way and never emit w:firstLine.
+                var hasFirstLineChars = indent?.FirstLineChars != null && indent.FirstLineChars.Value > 0;
+                if (!hasFirstLineChars && (indent?.FirstLine == null || indent.FirstLine.Value == "0"))
                 {
                     // Skip paragraphs where first-line indent is not expected:
                     // - hanging indent (e.g. bibliography entries)
@@ -1650,9 +1655,16 @@ public partial class WordHandler
             var lockEl = sdtProps.GetFirstChild<DocumentFormat.OpenXml.Wordprocessing.Lock>();
             var lockVal = lockEl?.Val?.InnerText;
 
-            // Determine SDT type
+            // Determine SDT type. Mirrors the classifier in
+            // WordHandler.Navigation.cs (SdtToNode) — checkbox first, text last
+            // as fallback. CONSISTENCY(sdt-type-classifier): both sites must
+            // recognize the same set of w:sdtPr content markers.
+            var checkBoxEl = sdtProps.GetFirstChild<DocumentFormat.OpenXml.Office2010.Word.SdtContentCheckBox>();
             string sdtType;
-            if (sdtProps.GetFirstChild<SdtContentDropDownList>() != null) sdtType = "dropdown";
+            if (sdtProps.GetFirstChild<SdtContentGroup>() != null) sdtType = "group";
+            else if (sdtProps.GetFirstChild<SdtContentPicture>() != null) sdtType = "picture";
+            else if (checkBoxEl != null) sdtType = "checkbox";
+            else if (sdtProps.GetFirstChild<SdtContentDropDownList>() != null) sdtType = "dropdown";
             else if (sdtProps.GetFirstChild<SdtContentComboBox>() != null) sdtType = "combobox";
             else if (sdtProps.GetFirstChild<SdtContentDate>() != null) sdtType = "date";
             else if (sdtProps.GetFirstChild<SdtContentText>() != null) sdtType = "text";
@@ -1670,7 +1682,15 @@ public partial class WordHandler
             }
 
             var editable = IsSdtEditable(sdtProps);
-            var displayValue = string.IsNullOrEmpty(text) ? "(empty)" : text;
+            // A checkbox reports its state, not the ☒/☐ glyph it renders —
+            // same shape as the legacy FORMCHECKBOX entry below.
+            bool? sdtChecked = checkBoxEl == null
+                ? null
+                : checkBoxEl.Checked?.Val?.InnerText == "1"
+                  || string.Equals(checkBoxEl.Checked?.Val?.InnerText, "true", StringComparison.OrdinalIgnoreCase);
+            var displayValue = sdtChecked.HasValue
+                ? null
+                : (string.IsNullOrEmpty(text) ? "(empty)" : text);
 
             entries.Add(new FormFieldEntry(
                 Kind: "sdt",
@@ -1680,7 +1700,8 @@ public partial class WordHandler
                 Alias: alias ?? tag,
                 Value: displayValue,
                 Items: items,
-                Lock: lockVal));
+                Lock: lockVal,
+                Checked: sdtChecked));
         }
 
         // 2. Collect legacy form fields
