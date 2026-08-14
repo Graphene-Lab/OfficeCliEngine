@@ -261,6 +261,38 @@ else {
     Write-Report "(vendored officecli.csproj not present — resource parity check skipped)"
 }
 
+# --- LoadSkill surface check ------------------------------------------------
+# Guards the unified `load_skill` surface (one method, three branches). A future
+# conversion must never produce a broken/illegible LoadSkill: this check verifies
+# the signature, the XML <param> doc, and the three branches (null → catalog,
+# "/..." → bundled file, name → SKILL.md). Failure prints a copy-paste template.
+Write-Report ""
+Write-Report "=== LoadSkill surface check ==="
+$skillSource = Read-Utf8 $toolPath
+$skillSig = [regex]::Match($skillSource, 'public\s+override\s+string\s+LoadSkill\s*\(\s*string\?\s*skill\s*=\s*null')
+$skillDoc = [regex]::Match($skillSource, '<param\s+name="skill">')
+$hasCatalog = $skillSource -match 'BuildSkillCatalog\(\)'
+$hasFile    = $skillSource -match 'LoadSkillFile\('
+$hasContent = $skillSource -match 'LoadSkillContent\('
+$hasNoList  = -not ($skillSource -match 'public\s+string\s+ListSkills\s*\(')
+$hasNoFile  = -not ($skillSource -match 'public\s+string\s+LoadSkillFile\s*\(')
+$skillOk = $skillSig.Success -and $skillDoc.Success -and $hasCatalog -and $hasFile -and $hasContent -and $hasNoList -and $hasNoFile
+if ($skillOk) {
+    Write-Report "OK — unified LoadSkill (override, string? skill = null) with catalog/file/content branches; ListSkills/LoadSkillFile not exposed."
+}
+else {
+    Write-Report "WARNING — LoadSkill surface is missing or broken. Expected shape:"
+    Write-Report '    public override string LoadSkill(string? skill = null)'
+    Write-Report '    {'
+    Write-Report '        if (string.IsNullOrEmpty(skill)) return OfficeCli.Core.SkillInstaller.BuildSkillCatalog();'
+    Write-Report '        if (skill[0] == ''/'') { var parts = skill.TrimStart(''/'') .Split(new[] { ''/'', ''}, 2); ... LoadSkillFile(parts[0], rel); }'
+    Write-Report '        return OfficeCli.Core.SkillInstaller.LoadSkillContent(skill);'
+    Write-Report '    }'
+    Write-Report ("         signature override: " + $skillSig.Success + " | <param name=`"skill`">: " + $skillDoc.Success +
+        " | catalog: " + $hasCatalog + " | file: " + $hasFile + " | content: " + $hasContent +
+        " | ListSkills removed: " + $hasNoList + " | LoadSkillFile removed: " + $hasNoFile)
+}
+
 # --- write report ------------------------------------------------------------
 [IO.File]::WriteAllText($reportPath, $report.ToString(), (New-Object System.Text.UTF8Encoding($false)))
 Write-Report ""
