@@ -15,7 +15,8 @@
                                    engine at runtime);
       3. Build engine            — surfaces engine API / package drift;
       4. Build AIOrchestrator    — surfaces OfficeTool breakage against the new engine;
-      5. Run OfficeTool.Tests    — the deterministic harness (docx/xlsx/pptx);
+      5. Run OfficeTool.Tests    — the deterministic harness, --full (smoke + golden
+                                   vendor regression + view/edits/skills/help);
       6. Optional: pack          — verify the NuGet package builds.
 
     The report is written to sync-gap-report.md at the repo root (gitignored) and
@@ -290,8 +291,8 @@ if (-not $SkipTests) {
     $harness = Join-Path (Split-Path $root -Parent) 'AIOrchestrator\OfficeTool.Tests\OfficeTool.Tests.csproj'
     if (Test-Path $harness) {
         Write-Report ""
-        Write-Report "=== OfficeTool.Tests (deterministic harness) ==="
-        dotnet run --project $harness -c Debug
+        Write-Report "=== OfficeTool.Tests (deterministic harness, --full) ==="
+        dotnet run --project $harness -c Debug -- --full
         if ($LASTEXITCODE -ne 0) { throw "OfficeTool.Tests failed (exit $LASTEXITCODE)." }
         Write-Report "Harness OK."
     }
